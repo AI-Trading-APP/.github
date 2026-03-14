@@ -1,0 +1,76 @@
+name: Reusable Python Post-Merge Full Test Suite
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        required: true
+        type: string
+      python_version:
+        required: false
+        type: string
+        default: '3.11'
+      has_lint:
+        required: false
+        type: boolean
+        default: false
+      has_tests:
+        required: false
+        type: boolean
+        default: true
+      has_coverage:
+        required: false
+        type: boolean
+        default: false
+      requirements_file:
+        required: false
+        type: string
+        default: 'requirements.txt'
+
+jobs:
+  full-suite:
+    name: Post-Merge Full Suite — ${{ inputs.service_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ${{ inputs.requirements_file }}
+          pip install pytest
+
+      - name: Lint (ruff)
+        if: inputs.has_lint
+        run: |
+          pip install ruff
+          ruff check .
+
+      - name: Run full test suite
+        if: inputs.has_tests
+        run: pytest -v --tb=short
+        env:
+          TESTING: "true"
+
+      - name: Coverage report
+        if: inputs.has_coverage
+        run: |
+          pip install pytest-cov
+          pytest --cov=. --cov-report=term-missing --cov-report=html
+        env:
+          TESTING: "true"
+
+      - name: Post-merge summary
+        if: always()
+        run: |
+          echo "## Post-Merge Summary — ${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Python: ${{ inputs.python_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,57 @@
+name: Reusable Next.js Post-Merge Validation
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        required: true
+        type: string
+      node_version:
+        required: false
+        type: string
+        default: '20'
+      has_lint:
+        required: false
+        type: boolean
+        default: true
+      has_tests:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  full-suite:
+    name: Post-Merge Full Suite — ${{ inputs.app_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        if: inputs.has_lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: Run tests
+        if: inputs.has_tests
+        run: npm test
+        env:
+          CI: true
+
+      - name: Post-merge summary
+        if: always()
+        run: |
+          echo "## Post-Merge Summary — ${{ inputs.app_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
