@@ -1,0 +1,70 @@
+name: Reusable Python PR Validation
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        required: true
+        type: string
+      python_version:
+        required: false
+        type: string
+        default: '3.11'
+      has_lint:
+        required: false
+        type: boolean
+        default: false
+      has_tests:
+        required: false
+        type: boolean
+        default: true
+      requirements_file:
+        required: false
+        type: string
+        default: 'requirements.txt'
+
+jobs:
+  validate:
+    name: PR Validation — ${{ inputs.service_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ${{ inputs.requirements_file }}
+          pip install pytest
+
+      - name: Lint (ruff)
+        if: inputs.has_lint
+        run: |
+          pip install ruff
+          ruff check .
+
+      - name: Type check (mypy)
+        if: inputs.has_lint
+        run: |
+          pip install mypy
+          mypy . --ignore-missing-imports
+        continue-on-error: true
+
+      - name: Run tests
+        if: inputs.has_tests
+        run: pytest -v --tb=short
+        env:
+          TESTING: "true"
+
+      - name: Validation summary
+        if: always()
+        run: |
+          echo "## PR Validation Summary — ${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Python: ${{ inputs.python_version }}" >> $GITHUB_STEP_SUMMARY
